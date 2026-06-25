@@ -20,9 +20,9 @@ include textworld/envs/pddl/textgen/*.ebnf
 recursive-include textworld/render/tmpl *
 
 recursive-include textworld/thirdparty/inform7 *
-include textworld/thirdparty/inform7-6M62/share/inform7/Compilers/inform6
-include textworld/thirdparty/inform7-6M62/share/inform7/Compilers/ni
-recursive-include textworld/thirdparty/inform7-6M62/share/inform7/Internal *
+include textworld/thirdparty/inform7/share/inform7/Compilers/inform6
+include textworld/thirdparty/inform7/share/inform7/Compilers/ni
+recursive-include textworld/thirdparty/inform7/share/inform7/Internal *
 
 global-exclude *.o *.a
 global-exclude */__pycache__/*

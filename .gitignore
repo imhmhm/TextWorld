@@ -15,7 +15,7 @@
 build/*
 gen_games*/
 experiments*/
-/textworld/thirdparty/inform7-6M62
+/textworld/thirdparty/inform7
 /textworld/thirdparty/frotz
 gameinfo.dbg
 textworld_data/

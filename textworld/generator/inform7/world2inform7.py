@@ -22,7 +22,7 @@ from textworld.generator.world import WorldRoom, WorldEntity
 from textworld.logic import Signature, Proposition, Action, Variable
 
 
-I7_DEFAULT_PATH = pjoin(importlib.resources.files("textworld"), "thirdparty", "inform7-6M62")
+I7_DEFAULT_PATH = pjoin(importlib.resources.files("textworld"), "thirdparty", "inform7")
 
 
 class TextworldInform7Warning(UserWarning):
@@ -474,8 +474,20 @@ class Inform7Game:
         """).lstrip()
 
         # Simply display *** The End *** when game ends.
+        # We used to "Include Basic Screen Effects by Emily Short." for its
+        # `center` phrase, but Inform 10.x no longer ships that extension, and
+        # the modern upstream version references VM_ symbols (VM_MoveCursorIn-
+        # StatusLine, VM_StatusLineHeight) that the new Inter-based Kits don't
+        # provide. TextWorld only needs `center`, so define it inline instead.
         source += textwrap.dedent("""\
-        Include Basic Screen Effects by Emily Short.
+        To center (quote - text):
+            say "[line break]";
+            let N be the number of characters in quote;
+            let pad be (39 - N) / 2;
+            if pad is greater than 0:
+                repeat with X running from 1 to pad:
+                    say " ";
+            say "[quote][line break]".
 
         Rule for printing the player's obituary:
             if story has ended finally:
@@ -1009,6 +1021,27 @@ def generate_inform7_source(game: Game, seed: int = 1234, use_i7_description: bo
     return inform7.gen_source(seed=seed)
 
 
+def _inform7_is_new_style(ni_path: str) -> bool:
+    """Detect whether the Inform 7 compiler at `ni_path` is the open-source
+    10.x line ("Krypton" and later) or the older 6M62-era binary.
+
+    The two use incompatible command-line interfaces: 6M62 expects double-dash
+    flags and `--format=.z8`; 10.x expects single-dash flags and
+    `-format=Inform6/v8` (to emit z-machine-v8 Inform6 source). We probe by
+    asking for the version: 10.x answers `-version` and reports a 10+ version,
+    while 6M62 doesn't understand `-version` (it uses `--version`) and the
+    probe fails, leaving us on the safe old-style default.
+    """
+    try:
+        out = subprocess.check_output([ni_path, "-version"],
+                                       stderr=subprocess.STDOUT, timeout=20)
+    except (subprocess.CalledProcessError, FileNotFoundError,
+            subprocess.TimeoutExpired):
+        return False
+    match = re.search(r"version\s+(\d+)\.", out.decode(errors="replace"))
+    return bool(match) and int(match.group(1)) >= 10
+
+
 def compile_inform7_game(source: str, output: str, verbose: bool = False) -> None:
     with make_temp_directory(prefix="tmp_inform") as project_folder:
         filename, ext = os.path.splitext(output)
@@ -1036,9 +1069,16 @@ def compile_inform7_game(source: str, output: str, verbose: bool = False) -> Non
         i6 = pjoin(INFORM_HOME, "share", "inform7", "Compilers", "inform6")
         i7_internal = pjoin(INFORM_HOME, "share", "inform7", "Internal")
 
-        # Compile story file.
-        cmd = [ni, "--internal", i7_internal, "--format={}".format(ext),
-               "--project", project_folder]
+        # Compile story file. Inform 10.x (single-dash, -format=Inform6/vN)
+        # differs from 6M62 (double-dash, --format=.zN); pick by version probe.
+        if _inform7_is_new_style(ni):
+            # Emit Inform6 source for z-machine version 8 (-> Build/auto.inf).
+            i7_format = {".z8": "Inform6/v8"}[ext]
+            cmd = [ni, "-internal", i7_internal, "-format={}".format(i7_format),
+                   "-project", project_folder]
+        else:
+            cmd = [ni, "--internal", i7_internal, "--format={}".format(ext),
+                   "--project", project_folder]
 
         if verbose:
             print("Running: {}".format(" ".join(cmd)))
