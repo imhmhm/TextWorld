@@ -33,41 +33,59 @@ if [ -n "$INFORM_HOME" ] && [ -x "$INFORM_HOME/share/inform7/Compilers/ni" ]; th
     exit 0
 fi
 
-# Location of a locally-compiled Inform 10.x tree (the open-source 'inform',
-# 'inweb' and 'intest' repositories checked out side by side). On aarch64
-# there is no prebuilt Inform release, so this is how Inform is obtained.
-# Override with INFORM7_SRC=<path>.
-INFORM7_SRC="${INFORM7_SRC:-$SCRIPT_DIR/../i7}"
-INFORM_SRC="$INFORM7_SRC/inform"
+# Detect the machine architecture the way Inform's own release tarballs did,
+# so we can pick the matching prebuilt bundle.
+ARCH="$(uname -m)"
 
-if [ ! -x "$INFORM_SRC/inform7/Tangled/inform7" ] || \
-   [ ! -x "$INFORM_SRC/inform6/Tangled/inform6" ]; then
-    echo "ERROR: could not find the compiled Inform compilers under:" >&2
-    echo "       $INFORM_SRC/inform7/Tangled/inform7" >&2
-    echo "       $INFORM_SRC/inform6/Tangled/inform6" >&2
-    echo "Set INFORM7_SRC to the directory containing the inform/, inweb/ and" >&2
-    echo "intest/ checkouts (built with 'make' inside inform/), or point" >&2
-    echo "INFORM_HOME at an existing Inform installation." >&2
+# Prefer a prebuilt, architecture-specific Inform bundle shipped in the repo
+# (textworld/thirdparty/inform7-<arch>.tar.gz). This keeps TextWorld
+# self-contained: cloning the repo and running setup.sh works without a local
+# Inform source tree. The bundle's layout is exactly what we stage below:
+#   share/inform7/Compilers/{ni,inform6}
+#   share/inform7/Internal/...
+BUNDLE="$SCRIPT_DIR/textworld/thirdparty/inform7-${ARCH}.tar.gz"
+
+stage_from_bundle() {
+    echo "Unpacking bundled Inform 7 ($BUNDLE) into $INSTALL_DIR"
+    rm -rf "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR"
+    tar xzf "$BUNDLE" -C "$INSTALL_DIR"
+    chmod +x "$INSTALL_DIR/share/inform7/Compilers/ni" \
+             "$INSTALL_DIR/share/inform7/Compilers/inform6"
+}
+
+# Fallback: stage directly from a locally-compiled Inform 10.x tree (the
+# open-source 'inform', 'inweb' and 'intest' repositories built with 'make').
+# Used when no matching prebuilt bundle exists (e.g. rebuilding on a new arch).
+# Override the tree root with INFORM7_SRC=<path>.
+stage_from_source() {
+    INFORM7_SRC="${INFORM7_SRC:-$SCRIPT_DIR/../i7}"
+    INFORM_SRC="$INFORM7_SRC/inform"
+    if [ ! -x "$INFORM_SRC/inform7/Tangled/inform7" ] || \
+       [ ! -x "$INFORM_SRC/inform6/Tangled/inform6" ]; then
+        return 1
+    fi
+    echo "Staging Inform 7 from source tree ($INFORM_SRC) into $INSTALL_DIR"
+    rm -rf "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR/share/inform7/Compilers"
+    cp "$INFORM_SRC/inform7/Tangled/inform7" "$INSTALL_DIR/share/inform7/Compilers/ni"
+    cp "$INFORM_SRC/inform6/Tangled/inform6" "$INSTALL_DIR/share/inform7/Compilers/inform6"
+    chmod +x "$INSTALL_DIR/share/inform7/Compilers/ni" \
+             "$INSTALL_DIR/share/inform7/Compilers/inform6"
+    cp -R "$INFORM_SRC/inform7/Internal" "$INSTALL_DIR/share/inform7/Internal"
+}
+
+if [ -f "$BUNDLE" ]; then
+    stage_from_bundle
+elif ! stage_from_source; then
+    echo "ERROR: no Inform 7 available." >&2
+    echo "       No prebuilt bundle at $BUNDLE, and no compiled Inform tree" >&2
+    echo "       found (looked for $SCRIPT_DIR/../i7/inform by default)." >&2
+    echo "       Either add a bundle textworld/thirdparty/inform7-${ARCH}.tar.gz," >&2
+    echo "       set INFORM7_SRC to a built inform/ tree, or point INFORM_HOME at" >&2
+    echo "       an existing Inform installation." >&2
     exit 1
 fi
-
-echo "Staging Inform 7 from $INFORM_SRC into $INSTALL_DIR"
-rm -rf "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR/share/inform7/Compilers"
-
-# Compilers: the new inform7 binary plays the role the old 'ni' did, and the
-# inform6 binary is the same tool as before (just a newer build).
-cp "$INFORM_SRC/inform7/Tangled/inform7" "$INSTALL_DIR/share/inform7/Compilers/ni"
-cp "$INFORM_SRC/inform6/Tangled/inform6" "$INSTALL_DIR/share/inform7/Compilers/inform6"
-chmod +x "$INSTALL_DIR/share/inform7/Compilers/ni" \
-         "$INSTALL_DIR/share/inform7/Compilers/inform6"
-
-# Built-in material: Standard Rules, English Language, Basic Inform and the
-# Inter-based Kits (WorldModelKit, CommandParserKit, ...). This also contains
-# the trace_actions machinery TextWorld relies on, so -- unlike 6M62 -- no
-# Actions.i6t patching is needed.
-rm -rf "$INSTALL_DIR/share/inform7/Internal"
-cp -R "$INFORM_SRC/inform7/Internal" "$INSTALL_DIR/share/inform7/Internal"
 
 echo "Staged Inform 7:"
 "$INSTALL_DIR/share/inform7/Compilers/ni" -version
