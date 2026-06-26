@@ -91,12 +91,26 @@ which no bundle exists:
 
 1. Check out and build the open-source Inform tree:
    ```bash
-   git clone https://github.com/ganelson/inform
-   git clone https://github.com/ganelson/inweb
-   git clone https://github.com/ganelson/intest
-   # build (see the inform/ repository's README); produces:
-   #   inform/inform7/Tangled/inform7
-   #   inform/inform6/Tangled/inform6
+   ## aarch64 编译新版 inform
+   sudo yum install clang
+
+   mkdir i7 && cd i7
+   git clone https://github.com/ganelson/inweb.git
+   ## Version: 9.0-beta+1C20 'Invasion' (9 June 2026)
+   # git checkout 43c9a871a1613fad6b97ddb47b3644931000b59c
+   
+   git clone https://github.com/ganelson/intest.git
+   ## Version: 2.2.0-beta+1A76 'The Remembering' (24 April 2026)
+   # git checkout 00857f42bc30069a26a005052385f8ba258087f7
+    
+   git clone https://github.com/ganelson/inform.git
+   ## Version: 10.2.0-beta+6Y13 'Krypton' (24 June 2026)
+   # git checkout 5c7ba42b74db69b93b1290453c65189fa60cfc67
+
+   bash inweb/scripts/first.sh linux
+   bash intest/scripts/first.sh
+   cd inform
+   bash scripts/first.sh
    ```
 2. Point `setup.sh` at it:
    ```bash
